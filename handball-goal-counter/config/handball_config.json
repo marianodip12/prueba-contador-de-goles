@@ -1,0 +1,37 @@
+{
+  "model_path": "public/models/yolov8n.pt",
+  "confidence_threshold": 0.5,
+  "min_goal_confidence": 0.7,
+  "frame_skip": 2,
+  "max_video_duration": 300,
+  "target_fps": 15,
+  "goal_zones": [
+    {
+      "name": "left_goal",
+      "team": "team_a",
+      "coordinates": [
+        [50, 200],
+        [250, 200],
+        [250, 500],
+        [50, 500]
+      ],
+      "description": "Portería izquierda (1920x1080)"
+    },
+    {
+      "name": "right_goal",
+      "team": "team_b",
+      "coordinates": [
+        [1670, 200],
+        [1870, 200],
+        [1870, 500],
+        [1670, 500]
+      ],
+      "description": "Portería derecha (1920x1080)"
+    }
+  ],
+  "video_processing": {
+    "max_resolution": "720p",
+    "codec": "h264",
+    "compression": "high"
+  }
+}
