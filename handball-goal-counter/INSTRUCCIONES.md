@@ -1,123 +1,163 @@
-# 🚀 INSTRUCCIONES RÁPIDAS
+# 🚀 PASOS RÁPIDOS PARA QUE FUNCIONE EN RENDER
 
-## ❌ Error que estabas teniendo:
-> "The 'functions' property cannot be used in conjunction with the 'builds' property"
+## ❌ Tu error actual:
+> "Python process exited with code 1"
 
-## ✅ Solución aplicada:
-Se removió la propiedad `builds` del `vercel.json`. Ahora solo usa `functions`.
+Esto pasa porque faltan dependencias o el modelo YOLOv8.
+
+## ✅ Solución: Este nuevo ZIP
+
+He creado una versión **completamente reescrita** específicamente para Render que:
+
+1. ✅ Usa **Flask** (más simple que Next.js + Python)
+2. ✅ **Descarga automáticamente** el modelo YOLOv8 al hacer build
+3. ✅ Usa **yt-dlp como librería Python** (no como comando shell)
+4. ✅ Tiene un **endpoint de diagnóstico** para ver qué falla
+5. ✅ Configuración optimizada para el plan Free de Render
 
 ---
 
-## 📝 Pasos para Deploy
+## 📝 PASOS EXACTOS
 
-### 1. Subir archivos a GitHub
+### 1️⃣ Subir archivos a GitHub
 
-**Opción A: Usando GitHub Web**
-1. Ve a tu repo: https://github.com/marianodip12/prueba-contador-de-goles
-2. Click en "Add file" → "Upload files"
-3. Arrastra TODOS los archivos del ZIP descomprimido
-4. **IMPORTANTE**: Marca "Replace existing files" si te pregunta
-5. Commit message: "Fix vercel.json - remove builds property"
-6. Click en "Commit changes"
+**Borra TODO** lo que tienes en el repo `marianodip12/prueba-contador-de-goles` y sube los archivos de este ZIP.
 
-**Opción B: Usando Git desde terminal**
+**Opción rápida desde la web:**
+1. Ve a tu repo en GitHub
+2. Click en cada archivo y bórralos (o usa Git para borrar todo)
+3. Click en "Add file" → "Upload files"
+4. Arrastra TODOS los archivos descomprimidos del ZIP
+5. Commit: "Reescritura completa para Render"
+
+**Opción terminal:**
 ```bash
-# Descomprimir el ZIP
-unzip handball-goal-counter.zip
-cd handball-goal-counter
+# Borrar todo del repo local
+cd prueba-contador-de-goles
+rm -rf *
 
-# Inicializar git si no existe
-git init
-git remote add origin https://github.com/marianodip12/prueba-contador-de-goles.git
+# Copiar nuevos archivos
+cp -r /ruta/al/handball-render/* .
+cp /ruta/al/handball-render/.gitignore .
 
-# Agregar todos los archivos
+# Push
 git add .
-git commit -m "Fix vercel.json - remove builds property"
-git push -u origin main --force
+git commit -m "Reescritura completa para Render"
+git push origin main --force
 ```
 
-### 2. Volver a Vercel
+### 2️⃣ Configurar Render
 
-1. Ve a https://vercel.com/new
-2. Importa el repositorio `marianodip12/prueba-contador-de-goles`
-3. **Project Name**: `prueba-contador-de-goles` (o el que quieras)
-4. **Framework Preset**: Next.js (debería detectarse automáticamente)
-5. **Root Directory**: déjalo en blanco o pon `./`
+1. Ve a https://dashboard.render.com
+2. Si ya tienes el servicio creado, ve a **Settings** y modifica:
 
-### 3. Variables de Entorno (Opcional)
+   - **Build Command**: `bash build.sh`
+   - **Start Command**: `gunicorn app:app --timeout 600 --workers 1 --threads 2`
 
-Click en "Environment Variables" y agrega:
-- `PYTHON_VERSION` = `3.11`
+3. Si NO lo has creado:
+   - "New +" → "Web Service"
+   - Conecta el repo
+   - Usa los comandos de arriba
 
-### 4. Click en "Deploy"
+### 3️⃣ Variables de Entorno
 
-¡Listo! Vercel construirá tu proyecto automáticamente.
+En **Environment** (Render dashboard):
+
+```
+PYTHON_VERSION = 3.11.0
+FLASK_DEBUG = false
+```
+
+### 4️⃣ Deploy
+
+Click en "Manual Deploy" → "Deploy latest commit"
+
+**Esto puede tardar 5-10 minutos** porque:
+- Instala PyTorch (~500MB)
+- Instala OpenCV
+- Descarga el modelo YOLOv8 (~6MB)
 
 ---
 
-## 🎯 Después del Deploy
+## 🔍 CÓMO VERIFICAR QUE FUNCIONA
 
-### Probar la aplicación
-1. Vercel te dará una URL como: `https://prueba-contador-de-goles-xxxx.vercel.app`
-2. Abre la URL en el navegador
-3. Verás un formulario donde puedes pegar una URL de YouTube
-4. Click en "Analizar Video"
+Una vez deployed, visita en este orden:
 
-### Probar el API directamente
-```bash
-curl -X POST https://tu-app.vercel.app/api/analyze-video \
-  -H "Content-Type: application/json" \
-  -d '{"youtube_url": "https://www.youtube.com/watch?v=VIDEO_ID"}'
+### 1. Health Check
+```
+https://prueba-contador-de-goles-1.onrender.com/health
+```
+Debería responder:
+```json
+{"status": "healthy", "service": "handball-goal-counter"}
+```
+
+### 2. Verificar Dependencias (¡IMPORTANTE!)
+```
+https://prueba-contador-de-goles-1.onrender.com/api/check-deps
+```
+
+Esto te dirá exactamente qué está instalado:
+```json
+{
+  "opencv": true,
+  "numpy": true,
+  "ultralytics": true,
+  "yt_dlp": true,
+  "model_file": true,
+  "errors": []
+}
+```
+
+Si algo dice `false`, ese es el problema. Mírame el JSON que sale ahí y te ayudo.
+
+### 3. Probar la UI
+```
+https://prueba-contador-de-goles-1.onrender.com/
 ```
 
 ---
 
-## ⚠️ IMPORTANTE: Limitaciones
+## ⚠️ NOTAS IMPORTANTES SOBRE RENDER FREE
 
-Este proyecto usa Python con dependencias pesadas (YOLOv8, OpenCV, PyTorch) que **NO funcionan completamente en Vercel** porque:
+1. **Se duerme después de 15 minutos** sin uso
+2. **Tarda ~30 segundos en despertar** la primera vez
+3. **Solo 512MB de RAM** - YOLOv8 puede tener problemas con videos grandes
+4. **Build puede tardar 10 minutos** la primera vez
 
-1. Vercel Serverless Functions tiene límite de **50MB** de tamaño
-2. PyTorch + YOLOv8 pesan más de 500MB
-3. El modelo YOLOv8 también pesa varios MB
+### Si tienes problemas de memoria:
 
-### Soluciones recomendadas para producción:
-
-**Opción 1: Usar Vercel solo para el frontend**
-- Frontend en Vercel (Next.js)
-- Backend en otro servicio que soporte Python (Railway, Render, AWS Lambda con layers)
-
-**Opción 2: Usar API externa**
-- Procesar videos en un servidor dedicado
-- Vercel solo recibe la URL y reenvía la petición
-
-**Opción 3: Usar Replicate.com o Hugging Face**
-- Servicios que ya tienen YOLOv8 listo para usar
-- Solo necesitas hacer requests HTTP
+Edita `config/handball_config.json`:
+```json
+{
+  "frame_skip": 10,        // Procesar menos frames
+  "max_video_duration": 60 // Solo 1 minuto
+}
+```
 
 ---
 
-## 🐛 Si el deploy falla
+## 🎯 SI AÚN NO FUNCIONA
 
-Errores comunes:
+Mándame:
 
-### "Module not found"
-- Verifica que `package.json` tenga las dependencias correctas
-- En Vercel, ve a Settings → General → Build & Development Settings
-- Build Command: `npm install && npm run build`
+1. **Los logs de Render** (Dashboard → Tu servicio → Logs)
+2. **El JSON de** `/api/check-deps`
+3. **El JSON del error** que aparece en pantalla
 
-### "Function size too large"
-- Las dependencias de Python son muy pesadas para Vercel
-- Considera usar Railway o Render en su lugar
-
-### "Timeout"
-- Aumenta el `maxDuration` en `vercel.json` (máx 300 en plan Pro)
+Con eso te lo soluciono al toque. 💪
 
 ---
 
-## 📞 Necesitas ayuda?
+## 📞 Contacto rápido para debug
 
-Si tienes problemas, verifica:
-1. ✅ Todos los archivos están en GitHub
-2. ✅ El `vercel.json` no tiene la propiedad `builds`
-3. ✅ El `package.json` tiene las dependencias correctas
-4. ✅ La estructura `/pages/api/` existe
+Si ves un error específico, búscalo aquí:
+
+| Error | Solución |
+|-------|----------|
+| "ImportError: No module named 'cv2'" | Falta OpenCV - revisa requirements.txt |
+| "ImportError: No module named 'ultralytics'" | Falta YOLOv8 - revisa requirements.txt |
+| "FileNotFoundError: yolov8n.pt" | El build.sh no descargó el modelo |
+| "Out of memory" | Sube a plan Starter o reduce frame_skip |
+| "Timeout" | Aumenta --timeout en start command |
+| "yt-dlp error" | Video privado o restringido geográficamente |

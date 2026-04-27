@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Sistema Principal de Procesamiento de Video
-Integra: yt-dlp, YOLOv8, DeepSORT, SportSense
 """
 
 import os
@@ -11,19 +10,12 @@ import tempfile
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, asdict
 
-try:
-    import cv2
-    import numpy as np
-    from youtube_extractor import YouTubeExtractor
-    from tracking_engine import TrackingEngine
-    from goal_detector import GoalDetector
-except ImportError as e:
-    print(json.dumps({
-        "error": f"Import error: {str(e)}",
-        "type": "ImportError",
-        "success": False
-    }))
-    sys.exit(1)
+import cv2
+import numpy as np
+
+from youtube_extractor import YouTubeExtractor
+from tracking_engine import TrackingEngine
+from goal_detector import GoalDetector
 
 
 @dataclass
@@ -40,12 +32,25 @@ class ProcessingResult:
 
 class HandballVideoProcessor:
     
-    def __init__(self, config_path: str = "config/handball_config.json"):
-        self.config = self._load_config(config_path)
+    def __init__(self):
+        # Buscar config en varios lugares
+        config_paths = [
+            "config/handball_config.json",
+            os.path.join(os.path.dirname(__file__), "..", "config", "handball_config.json"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "handball_config.json"),
+        ]
+        
+        self.config = self._load_config(config_paths)
+        
+        # Buscar el modelo
+        model_path = self._find_model()
+        
+        print(f"📂 Modelo: {model_path}", flush=True)
+        print(f"⚙️  Config cargada: {len(self.config)} keys", flush=True)
         
         self.youtube_extractor = YouTubeExtractor()
         self.tracking_engine = TrackingEngine(
-            model_path=self.config.get("model_path", "public/models/yolov8n.pt"),
+            model_path=model_path,
             confidence_threshold=self.config.get("confidence_threshold", 0.5)
         )
         self.goal_detector = GoalDetector(
@@ -54,17 +59,37 @@ class HandballVideoProcessor:
         )
         
         self.temp_dir = tempfile.mkdtemp(prefix="handball_")
+        print(f"📁 Temp dir: {self.temp_dir}", flush=True)
+    
+    def _find_model(self) -> str:
+        """Busca el modelo YOLOv8 en varias ubicaciones"""
+        possible_paths = [
+            "models/yolov8n.pt",
+            "./models/yolov8n.pt",
+            os.path.join(os.path.dirname(__file__), "..", "models", "yolov8n.pt"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "yolov8n.pt"),
+            "yolov8n.pt",  # Directorio actual
+        ]
         
-    def _load_config(self, config_path: str) -> Dict:
-        try:
-            with open(config_path, 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return self._get_default_config()
+        for path in possible_paths:
+            if os.path.exists(path):
+                return os.path.abspath(path)
+        
+        # Si no existe, ultralytics lo descarga automáticamente
+        return "yolov8n.pt"
+    
+    def _load_config(self, paths: List[str]) -> Dict:
+        for path in paths:
+            try:
+                with open(path, 'r') as f:
+                    return json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                continue
+        
+        return self._get_default_config()
     
     def _get_default_config(self) -> Dict:
         return {
-            "model_path": "public/models/yolov8n.pt",
             "confidence_threshold": 0.5,
             "min_goal_confidence": 0.7,
             "goal_zones": [
@@ -79,23 +104,26 @@ class HandballVideoProcessor:
                     "coordinates": [[1670, 200], [1870, 200], [1870, 500], [1670, 500]]
                 }
             ],
-            "frame_skip": 2,
-            "max_video_duration": 300,
-            "target_fps": 15
+            "frame_skip": 5,  # Más agresivo para Render free tier
+            "max_video_duration": 180,  # 3 minutos máximo
         }
     
     def process_video(self, youtube_url: str) -> ProcessingResult:
         import time
         start_time = time.time()
         
+        print(f"📥 Descargando video...", flush=True)
         video_path = self.youtube_extractor.download(
             youtube_url, 
             output_path=self.temp_dir,
-            max_duration=self.config.get("max_video_duration", 300)
+            max_duration=self.config.get("max_video_duration", 180)
         )
         
         if not video_path or not os.path.exists(video_path):
-            raise RuntimeError("Error al descargar el video")
+            raise RuntimeError("Error al descargar el video de YouTube")
+        
+        print(f"✅ Video descargado: {video_path}", flush=True)
+        print(f"🎬 Procesando frames...", flush=True)
         
         goals, metadata = self._process_frames(video_path)
         team_scores = self._calculate_team_scores(goals)
@@ -113,6 +141,8 @@ class HandballVideoProcessor:
         )
         
         self._cleanup()
+        
+        print(f"✅ Completado en {processing_time:.2f}s - {len(goals)} goles", flush=True)
         return result
     
     def _process_frames(self, video_path: str) -> Tuple[List[Dict], Dict]:
@@ -123,7 +153,9 @@ class HandballVideoProcessor:
         
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        frame_skip = self.config.get("frame_skip", 2)
+        frame_skip = self.config.get("frame_skip", 5)
+        
+        print(f"📹 {total_frames} frames @ {fps} FPS (skip={frame_skip})", flush=True)
         
         goals = []
         frame_count = 0
@@ -138,17 +170,26 @@ class HandballVideoProcessor:
                 frame_count += 1
                 continue
             
-            detections = self.tracking_engine.track(frame)
-            goal_event = self.goal_detector.check_goal(
-                detections=detections,
-                frame=frame,
-                timestamp=frame_count / fps
-            )
-            
-            if goal_event:
-                goals.append(goal_event)
+            try:
+                detections = self.tracking_engine.track(frame)
+                goal_event = self.goal_detector.check_goal(
+                    detections=detections,
+                    frame=frame,
+                    timestamp=frame_count / fps
+                )
+                
+                if goal_event:
+                    goals.append(goal_event)
+                    print(f"⚽ GOL en {goal_event['timestamp']:.2f}s", flush=True)
+            except Exception as e:
+                print(f"⚠️  Error frame {frame_count}: {e}", flush=True)
             
             processed_count += 1
+            
+            if processed_count % 50 == 0:
+                progress = (frame_count / total_frames) * 100
+                print(f"⏳ {progress:.1f}% ({processed_count} frames)", flush=True)
+            
             frame_count += 1
         
         cap.release()
@@ -173,26 +214,5 @@ class HandballVideoProcessor:
         try:
             if os.path.exists(self.temp_dir):
                 shutil.rmtree(self.temp_dir)
-        except Exception:
-            pass
-
-
-def main(youtube_url: str) -> str:
-    try:
-        processor = HandballVideoProcessor()
-        result = processor.process_video(youtube_url)
-        return json.dumps(asdict(result), indent=2)
-    except Exception as e:
-        return json.dumps({
-            "error": str(e),
-            "type": type(e).__name__,
-            "success": False
-        }, indent=2)
-
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "URL requerida", "success": False}))
-        sys.exit(1)
-    
-    print(main(sys.argv[1]))
+        except Exception as e:
+            print(f"⚠️  Cleanup error: {e}", flush=True)

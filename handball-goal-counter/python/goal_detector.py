@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Detector de Goles con Lógica Deportiva"""
+"""Detector de Goles con Lógica Deportiva de Handball"""
 
 import cv2
 import numpy as np
@@ -8,6 +8,7 @@ from collections import defaultdict
 
 
 class GoalZone:
+    """Representa una zona de portería"""
     
     def __init__(self, name: str, team: str, coordinates: List[List[int]]):
         self.name = name
@@ -21,6 +22,7 @@ class GoalZone:
 
 
 class GoalDetector:
+    """Detector de goles con validación de trayectoria"""
     
     def __init__(self, goal_zones: List[Dict], min_confidence: float = 0.7):
         self.zones = [
@@ -43,9 +45,11 @@ class GoalDetector:
     ) -> Optional[Dict]:
         self.current_frame += 1
         
+        # Cooldown entre goles
         if (self.current_frame - self.last_goal_frame) < self.cooldown_frames:
             return None
         
+        # Buscar la pelota
         ball_detections = [
             d for d in detections 
             if d.get('class_name') == 'sports_ball'
@@ -67,6 +71,7 @@ class GoalDetector:
         
         track_id = ball.get('track_id', -1)
         
+        # Guardar posición en historial
         self.ball_positions[track_id].append({
             'position': ball_center,
             'timestamp': timestamp,
@@ -76,6 +81,7 @@ class GoalDetector:
         if len(self.ball_positions[track_id]) > 10:
             self.ball_positions[track_id].pop(0)
         
+        # Verificar cruce de portería
         goal_event = self._check_goal_crossing(
             ball_center, 
             track_id, 
@@ -108,6 +114,7 @@ class GoalDetector:
                 
                 self.detected_goals.add(goal_key)
                 
+                # El equipo que anota es el opuesto al dueño de la portería
                 scoring_team = "team_b" if zone.team == "team_a" else "team_a"
                 
                 return {
@@ -123,6 +130,7 @@ class GoalDetector:
         return None
     
     def _validate_trajectory(self, track_id: int, zone: GoalZone) -> bool:
+        """Valida que la pelota haya entrado desde afuera"""
         history = self.ball_positions.get(track_id, [])
         
         if len(history) < 3:

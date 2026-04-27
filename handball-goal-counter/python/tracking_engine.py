@@ -6,17 +6,14 @@ import cv2
 from typing import List, Dict, Tuple
 from collections import defaultdict, deque
 
-try:
-    from ultralytics import YOLO
-except ImportError:
-    YOLO = None
+from ultralytics import YOLO
 
 
 class DeepSORTTracker:
+    """Implementación simplificada de DeepSORT"""
     
-    def __init__(self, max_age=30, min_hits=3, iou_threshold=0.3):
+    def __init__(self, max_age=30, iou_threshold=0.3):
         self.max_age = max_age
-        self.min_hits = min_hits
         self.iou_threshold = iou_threshold
         self.tracks = {}
         self.next_id = 0
@@ -24,6 +21,7 @@ class DeepSORTTracker:
     
     def update(self, detections: List[Dict]) -> List[Dict]:
         if not detections:
+            self._age_tracks()
             return []
         
         matched_tracks = []
@@ -36,6 +34,8 @@ class DeepSORTTracker:
             best_track_id = None
             
             for track_id, track in self.tracks.items():
+                if track['class_id'] != class_id:
+                    continue
                 iou = self._calculate_iou(bbox, track['bbox'])
                 if iou > best_iou and iou > self.iou_threshold:
                     best_iou = iou
@@ -97,21 +97,23 @@ class DeepSORTTracker:
 
 
 class TrackingEngine:
+    """Motor principal de tracking con YOLOv8 + DeepSORT"""
     
     def __init__(self, model_path: str, confidence_threshold: float = 0.5):
-        if YOLO is None:
-            raise ImportError("ultralytics no está instalado")
-        
+        print(f"🤖 Cargando YOLOv8 desde: {model_path}", flush=True)
         self.model = YOLO(model_path)
         self.confidence_threshold = confidence_threshold
         self.tracker = DeepSORTTracker()
         
+        # Clases COCO relevantes
         self.relevant_classes = {
             0: 'person',
             32: 'sports_ball'
         }
+        print(f"✅ Modelo cargado", flush=True)
     
     def track(self, frame: np.ndarray) -> List[Dict]:
+        """Detecta y trackea objetos en un frame"""
         results = self.model(frame, verbose=False)[0]
         
         detections = []
