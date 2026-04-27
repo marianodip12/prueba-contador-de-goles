@@ -14,8 +14,7 @@
         [250, 200],
         [250, 500],
         [50, 500]
-      ],
-      "description": "Portería izquierda (1920x1080)"
+      ]
     },
     {
       "name": "right_goal",
@@ -25,13 +24,7 @@
         [1870, 200],
         [1870, 500],
         [1670, 500]
-      ],
-      "description": "Portería derecha (1920x1080)"
+      ]
     }
-  ],
-  "video_processing": {
-    "max_resolution": "720p",
-    "codec": "h264",
-    "compression": "high"
-  }
+  ]
 }

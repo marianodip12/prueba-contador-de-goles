@@ -1,7 +1,2 @@
-"""
-Sistema de Conteo de Goles de Handball
-Módulo principal de Python
-"""
-
+"""Sistema de Conteo de Goles de Handball"""
 __version__ = "1.0.0"
-__author__ = "Senior Software Architect"

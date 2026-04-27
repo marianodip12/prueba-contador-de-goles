@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "install-deps": "python3 -m pip install -r requirements.txt"
+    "start": "next start"
   },
   "keywords": ["handball", "goal-detection", "yolov8", "deepsort", "youtube"],
   "author": "Senior Software Architect",
