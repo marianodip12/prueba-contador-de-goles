@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: handball-goal-counter
+    env: python
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      mkdir -p models
+      wget -O models/yolov8n.pt https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
+    startCommand: gunicorn app:app --timeout 600 --workers 1 --threads 2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_DEBUG
+        value: false
+    healthCheckPath: /health
